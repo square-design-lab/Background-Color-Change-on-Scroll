@@ -64,84 +64,85 @@
     activeVars = activeVars.filter(function (v) { return !skippedVars[v]; });
   }
 
-  function parseHSLA(str) {
+  // Parse any CSS color string to {r,g,b,a} for RGB-space interpolation.
+  // RGB lerp never produces out-of-theme hues the way HSL lerp does.
+  function parseColor(str) {
     if (!str) return null;
+
     var m = str.match(
       /hsla?\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%\s*(?:,\s*([\d.]+))?\s*\)/
     );
-    if (m) return { h: +m[1], s: +m[2], l: +m[3], a: m[4] != null ? +m[4] : 1 };
+    if (m) {
+      return hslToRgb(+m[1] / 360, +m[2] / 100, +m[3] / 100, m[4] != null ? +m[4] : 1);
+    }
 
     var r = str.match(
       /rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+))?\s*\)/
     );
-    if (r) return rgbToHSLA(+r[1], +r[2], +r[3], r[4] != null ? +r[4] : 1);
+    if (r) return { r: +r[1], g: +r[2], b: +r[3], a: r[4] != null ? +r[4] : 1 };
 
     var hex = str.match(/^#([0-9a-f]{3,8})$/i);
     if (hex) {
       var h = hex[1];
-      if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
-      if (h.length === 4) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2] + h[3] + h[3];
-      var ri = parseInt(h.substring(0, 2), 16);
-      var gi = parseInt(h.substring(2, 4), 16);
-      var bi = parseInt(h.substring(4, 6), 16);
-      var ai = h.length === 8 ? parseInt(h.substring(6, 8), 16) / 255 : 1;
-      return rgbToHSLA(ri, gi, bi, ai);
+      if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+      if (h.length === 4) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2]+h[3]+h[3];
+      return {
+        r: parseInt(h.slice(0, 2), 16),
+        g: parseInt(h.slice(2, 4), 16),
+        b: parseInt(h.slice(4, 6), 16),
+        a: h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1
+      };
     }
     return null;
   }
 
-  function rgbToHSLA(r, g, b, a) {
-    r /= 255; g /= 255; b /= 255;
-    var max = Math.max(r, g, b), min = Math.min(r, g, b);
-    var h, s, l = (max + min) / 2;
-    if (max === min) {
-      h = s = 0;
+  function hslToRgb(h, s, l, a) {
+    var r, g, b;
+    if (s === 0) {
+      r = g = b = l;
     } else {
-      var d = max - min;
-      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-      if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
-      else if (max === g) h = ((b - r) / d + 2) / 6;
-      else h = ((r - g) / d + 4) / 6;
-      h *= 360;
+      var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      var p = 2 * l - q;
+      r = hue2rgb(p, q, h + 1 / 3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1 / 3);
     }
-    return { h: h, s: s * 100, l: l * 100, a: a };
+    return { r: r * 255, g: g * 255, b: b * 255, a: a };
   }
 
-  function lerpHSLA(a, b, t) {
+  function hue2rgb(p, q, t) {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  }
+
+  function lerpRGB(a, b, t) {
     if (!a || !b) return b || a;
-    var dh = b.h - a.h;
-    if (dh > 180) dh -= 360;
-    if (dh < -180) dh += 360;
     return {
-      h: a.h + dh * t,
-      s: a.s + (b.s - a.s) * t,
-      l: a.l + (b.l - a.l) * t,
+      r: a.r + (b.r - a.r) * t,
+      g: a.g + (b.g - a.g) * t,
+      b: a.b + (b.b - a.b) * t,
       a: a.a + (b.a - a.a) * t
     };
   }
 
-  function hslaToString(c) {
+  function rgbToString(c) {
     return (
-      "hsla(" +
-      c.h.toFixed(2) + "," +
-      c.s.toFixed(2) + "%," +
-      c.l.toFixed(2) + "%," +
+      "rgba(" +
+      Math.round(c.r) + "," +
+      Math.round(c.g) + "," +
+      Math.round(c.b) + "," +
       c.a.toFixed(3) +
       ")"
     );
   }
 
-  function easeInOut(t) {
-    return t * t * (3 - 2 * t);
-  }
-
-  function easeIn(t) {
-    return t * t;
-  }
-
-  function easeOut(t) {
-    return t * (2 - t);
-  }
+  function easeInOut(t) { return t * t * (3 - 2 * t); }
+  function easeIn(t) { return t * t; }
+  function easeOut(t) { return t * (2 - t); }
 
   function applyEasing(t) {
     if (easingMode === "linear") return t;
@@ -177,7 +178,7 @@
       var vars = {};
       activeVars.forEach(function (v) {
         var val = cs.getPropertyValue(v).trim();
-        if (val) vars[v] = parseHSLA(val);
+        if (val) vars[v] = parseColor(val);
       });
       themeCache[theme] = vars;
     }
@@ -205,8 +206,7 @@
     function update() {
       ticking = false;
       var vh = window.innerHeight;
-      var scrollTop =
-        window.pageYOffset || document.documentElement.scrollTop;
+      var scrollTop = window.pageYOffset || document.documentElement.scrollTop;
 
       for (var i = 0; i < sections.length; i++) {
         var sec = sections[i];
@@ -215,16 +215,8 @@
         var vars = themeCache[theme];
         if (!vars) continue;
 
-        var nextSec = sections[i + 1];
         var prevSec = i > 0 ? sections[i - 1] : null;
-
-        var nextTheme = nextSec
-          ? nextSec.getAttribute("data-section-theme")
-          : null;
-        var prevTheme = prevSec
-          ? prevSec.getAttribute("data-section-theme")
-          : null;
-        var nextVars = nextTheme ? themeCache[nextTheme] : null;
+        var prevTheme = prevSec ? prevSec.getAttribute("data-section-theme") : null;
         var prevVars = prevTheme ? themeCache[prevTheme] : null;
 
         var sectionTop = rect.top + scrollTop;
@@ -233,11 +225,9 @@
         var progress = (viewportCenter - sectionTop) / sectionH;
         progress = Math.max(0, Math.min(1, progress));
 
-        var blendVars = null;
-
+        var blendVars;
         if (progress <= transitionEnd && prevVars) {
-          var t = 1 - progress / transitionEnd;
-          t = applyEasing(Math.max(0, Math.min(1, t)));
+          var t = applyEasing(Math.max(0, Math.min(1, 1 - progress / transitionEnd)));
           blendVars = blendThemeVars(vars, prevVars, t);
         } else {
           blendVars = vars;
@@ -245,14 +235,13 @@
 
         applyVarsToSection(sec, blendVars);
 
-        if (transitionNav && header && isTopSection(sec, scrollTop, vh)) {
+        if (transitionNav && header && isTopSection(rect, vh)) {
           applyVarsToNav(header, blendVars);
         }
       }
     }
 
-    function isTopSection(sec, scrollTop, vh) {
-      var rect = sec.getBoundingClientRect();
+    function isTopSection(rect, vh) {
       return rect.top <= vh * 0.15 && rect.bottom > vh * 0.15;
     }
 
@@ -261,11 +250,7 @@
       activeVars.forEach(function (v) {
         var a = base[v];
         var b = target[v];
-        if (a && b) {
-          result[v] = lerpHSLA(a, b, t);
-        } else {
-          result[v] = a || b || null;
-        }
+        result[v] = (a && b) ? lerpRGB(a, b, t) : (a || b || null);
       });
       return result;
     }
@@ -274,10 +259,8 @@
       activeVars.forEach(function (v) {
         if (NAV_VARS.indexOf(v) !== -1) return;
         var val = vars[v];
-        if (val) {
-          if (typeof val === "object") {
-            sec.style.setProperty(v, hslaToString(val));
-          }
+        if (val && typeof val === "object") {
+          sec.style.setProperty(v, rgbToString(val));
         }
       });
     }
@@ -286,32 +269,15 @@
       NAV_VARS.forEach(function (v) {
         var val = vars[v];
         if (val && typeof val === "object") {
-          nav.style.setProperty(v, hslaToString(val));
+          nav.style.setProperty(v, rgbToString(val));
         }
       });
     }
 
-    function clearOverrides() {
-      sections.forEach(function (sec) {
-        activeVars.forEach(function (v) {
-          sec.style.removeProperty(v);
-        });
-      });
-      if (header) {
-        NAV_VARS.forEach(function (v) {
-          header.style.removeProperty(v);
-        });
-      }
-    }
-
     update();
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", function () {
-      requestAnimationFrame(update);
-    });
-    window.addEventListener("orientationchange", function () {
-      setTimeout(update, 300);
-    });
+    window.addEventListener("resize", function () { requestAnimationFrame(update); });
+    window.addEventListener("orientationchange", function () { setTimeout(update, 300); });
   }
 
   if (document.readyState === "loading") {
