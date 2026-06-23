@@ -1,0 +1,6 @@
+/* SDL Background Color Change on Scroll v1.0 */
+
+#sections .page-section .section-background,
+#sections .page-section .section-border {
+  transition: none !important;
+}

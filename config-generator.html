@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SDL Background Color Change on Scroll — Config Generator</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #242836;
+    --border: #2e3345;
+    --text: #e4e6f0;
+    --text2: #9498ab;
+    --accent: #6c8cff;
+    --accent2: #4a6adf;
+    --success: #34d399;
+    --warning: #fbbf24;
+    --radius: 10px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  .app { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 380px;
+    min-width: 380px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 24px;
+  }
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .preview-area {
+    flex: 1;
+    overflow-y: auto;
+    position: relative;
+  }
+  .code-area {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 20px 24px;
+    max-height: 350px;
+    overflow-y: auto;
+  }
+  .logo {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .title {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    line-height: 1.3;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text2);
+    margin-bottom: 12px;
+    margin-top: 24px;
+  }
+  .section-label:first-of-type { margin-top: 0; }
+  .control {
+    margin-bottom: 16px;
+  }
+  .control label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+  .control label .hint {
+    font-weight: 400;
+    color: var(--text2);
+    font-size: 11px;
+    display: block;
+    margin-top: 2px;
+  }
+  .range-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .range-row input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent);
+    height: 6px;
+  }
+  .range-row .val {
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 600;
+    min-width: 36px;
+    text-align: right;
+  }
+  select, input[type="text"] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 13px;
+    outline: none;
+  }
+  select:focus, input[type="text"]:focus {
+    border-color: var(--accent);
+  }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .toggle-row:last-child { border-bottom: none; }
+  .toggle-row .label {
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .toggle {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    cursor: pointer;
+  }
+  .toggle input { display: none; }
+  .toggle .slider {
+    position: absolute;
+    inset: 0;
+    background: var(--surface2);
+    border-radius: 22px;
+    transition: 0.2s;
+    border: 1px solid var(--border);
+  }
+  .toggle .slider::before {
+    content: "";
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    left: 2px;
+    top: 2px;
+    background: var(--text2);
+    border-radius: 50%;
+    transition: 0.2s;
+  }
+  .toggle input:checked + .slider {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .toggle input:checked + .slider::before {
+    transform: translateX(18px);
+    background: #fff;
+  }
+  .btn-copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  .btn-copy:hover { background: var(--accent2); }
+  .btn-copy.copied { background: var(--success); }
+  .code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .code-header h3 {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .code-tabs {
+    display: flex;
+    gap: 4px;
+    margin-right: 12px;
+  }
+  .code-tab {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    border-radius: 6px;
+    padding: 4px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: 0.15s;
+  }
+  .code-tab.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  pre {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    overflow-x: auto;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  /* Preview sections */
+  .preview-section {
+    min-height: 260px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 40px;
+    transition: background-color 0.05s linear, color 0.05s linear;
+    position: relative;
+  }
+  .preview-section .content {
+    max-width: 600px;
+    text-align: center;
+  }
+  .preview-section h2 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    transition: color 0.05s linear;
+  }
+  .preview-section p {
+    font-size: 15px;
+    line-height: 1.6;
+    margin-bottom: 16px;
+    transition: color 0.05s linear;
+  }
+  .preview-section .btn {
+    display: inline-block;
+    padding: 10px 24px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background-color 0.05s linear, color 0.05s linear;
+  }
+  .preview-section .theme-badge {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(128,128,128,0.2);
+    text-transform: uppercase;
+  }
+  .scroll-hint {
+    text-align: center;
+    padding: 16px;
+    color: var(--text2);
+    font-size: 12px;
+    letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="logo">Square Design Lab</div>
+    <div class="title">Background Color Change on Scroll</div>
+
+    <div class="section-label">Transition Zone</div>
+    <div class="control">
+      <label>
+        Start Point
+        <span class="hint">How far into the section before blending begins</span>
+      </label>
+      <div class="range-row">
+        <input type="range" id="transitionStart" min="5" max="45" value="35" />
+        <span class="val" id="transitionStartVal">35%</span>
+      </div>
+    </div>
+    <div class="control">
+      <label>
+        End Point
+        <span class="hint">How far into the section before blending completes</span>
+      </label>
+      <div class="range-row">
+        <input type="range" id="transitionEnd" min="55" max="95" value="65" />
+        <span class="val" id="transitionEndVal">65%</span>
+      </div>
+    </div>
+
+    <div class="section-label">Easing</div>
+    <div class="control">
+      <label>Transition Curve</label>
+      <select id="easing">
+        <option value="ease" selected>Ease In-Out (Smooth)</option>
+        <option value="linear">Linear</option>
+        <option value="ease-in">Ease In</option>
+        <option value="ease-out">Ease Out</option>
+      </select>
+    </div>
+
+    <div class="section-label">Property Groups</div>
+    <div class="toggle-row">
+      <span class="label">Background</span>
+      <label class="toggle"><input type="checkbox" checked data-group="background" /><span class="slider"></span></label>
+    </div>
+    <div class="toggle-row">
+      <span class="label">Headings</span>
+      <label class="toggle"><input type="checkbox" checked data-group="headings" /><span class="slider"></span></label>
+    </div>
+    <div class="toggle-row">
+      <span class="label">Body Text</span>
+      <label class="toggle"><input type="checkbox" checked data-group="body" /><span class="slider"></span></label>
+    </div>
+    <div class="toggle-row">
+      <span class="label">Links</span>
+      <label class="toggle"><input type="checkbox" checked data-group="links" /><span class="slider"></span></label>
+    </div>
+    <div class="toggle-row">
+      <span class="label">Buttons</span>
+      <label class="toggle"><input type="checkbox" checked data-group="buttons" /><span class="slider"></span></label>
+    </div>
+    <div class="toggle-row">
+      <span class="label">Navigation</span>
+      <label class="toggle"><input type="checkbox" checked data-group="nav" /><span class="slider"></span></label>
+    </div>
+
+    <div class="section-label">Sections</div>
+    <div class="control">
+      <label>
+        Exclude Section IDs
+        <span class="hint">Comma-separated Squarespace section IDs to skip</span>
+      </label>
+      <input type="text" id="excludeSections" placeholder="e.g. 6a3a55a9..., 6a3a55b4..." />
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="preview-area" id="previewArea">
+      <div class="scroll-hint">&#8595; Scroll to preview color transitions &#8595;</div>
+      <div class="preview-section" id="prev-0" data-bg="#FFFEF5" data-heading="#151414" data-para="#151414" data-btnbg="#D93636" data-btntxt="#FFFFFF">
+        <span class="theme-badge">White</span>
+        <div class="content">
+          <h2>Light Section</h2>
+          <p>This simulates a white-themed Squarespace section. Scroll down to see the colors blend smoothly into the next section.</p>
+          <span class="btn">Learn More</span>
+        </div>
+      </div>
+      <div class="preview-section" id="prev-1" data-bg="#356CC0" data-heading="#FFFEF5" data-para="#FFFEF5" data-btnbg="#FFFFFF" data-btntxt="#000000">
+        <span class="theme-badge">Dark</span>
+        <div class="content">
+          <h2>Dark Section</h2>
+          <p>A dark-themed section with light text. Notice how headings, paragraphs, buttons, and the background all transition together.</p>
+          <span class="btn">Explore</span>
+        </div>
+      </div>
+      <div class="preview-section" id="prev-2" data-bg="#151414" data-heading="#FFFEF5" data-para="#FFFEF5" data-btnbg="#D93636" data-btntxt="#FFFFFF">
+        <span class="theme-badge">Black</span>
+        <div class="content">
+          <h2>Black Section</h2>
+          <p>A black-themed section. The transition from dark blue to pure black demonstrates how even subtle shifts are smoothly handled.</p>
+          <span class="btn">Get Started</span>
+        </div>
+      </div>
+      <div class="preview-section" id="prev-3" data-bg="#D93636" data-heading="#FFFFFF" data-para="#FFFFFF" data-btnbg="#151414" data-btntxt="#FFFFFF">
+        <span class="theme-badge">Bright</span>
+        <div class="content">
+          <h2>Bright Section</h2>
+          <p>An accent-colored section. The plugin handles transitions between any Squarespace theme combination automatically.</p>
+          <span class="btn">Contact Us</span>
+        </div>
+      </div>
+      <div class="preview-section" id="prev-4" data-bg="#FFFEF5" data-heading="#151414" data-para="#151414" data-btnbg="#D93636" data-btntxt="#FFFFFF">
+        <span class="theme-badge">White</span>
+        <div class="content">
+          <h2>Back to Light</h2>
+          <p>Returning to a light section demonstrates the full cycle of transitions working seamlessly in both directions.</p>
+          <span class="btn">View More</span>
+        </div>
+      </div>
+      <div class="scroll-hint">&#8593; Scroll up to replay &#8593;</div>
+    </div>
+
+    <div class="code-area">
+      <div class="code-header">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="code-tabs">
+            <button class="code-tab active" data-tab="header">Header Code Injection</button>
+            <button class="code-tab" data-tab="footer">Footer Code Injection</button>
+          </div>
+        </div>
+        <button class="btn-copy" id="copyBtn" onclick="copyCode()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copy
+        </button>
+      </div>
+      <pre id="codeOutput"></pre>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var CDN_BASE = "https://cdn.jsdelivr.net/gh/square-design-lab/Background-Color-Change-on-Scroll@latest";
+
+  var startEl = document.getElementById("transitionStart");
+  var endEl = document.getElementById("transitionEnd");
+  var startValEl = document.getElementById("transitionStartVal");
+  var endValEl = document.getElementById("transitionEndVal");
+  var easingEl = document.getElementById("easing");
+  var excludeEl = document.getElementById("excludeSections");
+  var codeOutput = document.getElementById("codeOutput");
+  var currentTab = "header";
+
+  function getConfig() {
+    var start = +startEl.value / 100;
+    var end = +endEl.value / 100;
+    var easing = easingEl.value;
+    var excludeRaw = excludeEl.value.trim();
+    var exclude = excludeRaw ? excludeRaw.split(",").map(function(s) { return s.trim(); }).filter(Boolean) : [];
+
+    var skipGroups = [];
+    document.querySelectorAll("[data-group]").forEach(function(cb) {
+      if (!cb.checked) skipGroups.push(cb.getAttribute("data-group"));
+    });
+
+    var transitionNav = true;
+    var navCb = document.querySelector('[data-group="nav"]');
+    if (navCb && !navCb.checked) transitionNav = false;
+
+    return { start: start, end: end, easing: easing, exclude: exclude, skipGroups: skipGroups, transitionNav: transitionNav };
+  }
+
+  function generateCode() {
+    var cfg = getConfig();
+    var isDefault = cfg.start === 0.35 && cfg.end === 0.65 && cfg.easing === "ease" &&
+      cfg.exclude.length === 0 && cfg.skipGroups.length === 0 && cfg.transitionNav;
+
+    if (currentTab === "header") {
+      var lines = [];
+      lines.push("<!-- SDL Background Color Change on Scroll -->");
+      lines.push('<link rel="stylesheet" href="' + CDN_BASE + '/bgColorScroll.css" />');
+
+      if (!isDefault) {
+        lines.push("");
+        lines.push("<script>");
+        lines.push("window.SDL_BG_SCROLL_CONFIG = {");
+        var props = [];
+        if (cfg.start !== 0.35) props.push("  transitionStart: " + cfg.start);
+        if (cfg.end !== 0.65) props.push("  transitionEnd: " + cfg.end);
+        if (cfg.easing !== "ease") props.push('  easing: "' + cfg.easing + '"');
+        if (!cfg.transitionNav) props.push("  transitionNav: false");
+        if (cfg.exclude.length) {
+          props.push('  excludeSections: ["' + cfg.exclude.join('", "') + '"]');
+        }
+        if (cfg.skipGroups.length) {
+          var filtered = cfg.skipGroups.filter(function(g) { return g !== "nav"; });
+          if (filtered.length) {
+            props.push('  skipProperties: ["' + filtered.join('", "') + '"]');
+          }
+        }
+        lines.push(props.join(",\n"));
+        lines.push("};");
+        lines.push("<\/script>");
+      }
+      codeOutput.textContent = lines.join("\n");
+    } else {
+      var footerLines = [];
+      footerLines.push("<!-- SDL Background Color Change on Scroll -->");
+      footerLines.push('<script src="' + CDN_BASE + '/bgColorScroll.js"><\/script>');
+      codeOutput.textContent = footerLines.join("\n");
+    }
+  }
+
+  // Preview scroll simulation
+  function hexToHSL(hex) {
+    var r = parseInt(hex.slice(1, 3), 16) / 255;
+    var g = parseInt(hex.slice(3, 5), 16) / 255;
+    var b = parseInt(hex.slice(5, 7), 16) / 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b);
+    var h, s, l = (max + min) / 2;
+    if (max === min) { h = s = 0; }
+    else {
+      var d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+      else if (max === g) h = ((b - r) / d + 2) / 6;
+      else h = ((r - g) / d + 4) / 6;
+      h *= 360;
+    }
+    return { h: h, s: s * 100, l: l * 100 };
+  }
+
+  function lerpColor(a, b, t) {
+    var dh = b.h - a.h;
+    if (dh > 180) dh -= 360;
+    if (dh < -180) dh += 360;
+    return {
+      h: a.h + dh * t,
+      s: a.s + (b.s - a.s) * t,
+      l: a.l + (b.l - a.l) * t
+    };
+  }
+
+  function hslStr(c) {
+    return "hsl(" + c.h.toFixed(1) + "," + c.s.toFixed(1) + "%," + c.l.toFixed(1) + "%)";
+  }
+
+  function easeInOut(t) { return t * t * (3 - 2 * t); }
+  function easeIn(t) { return t * t; }
+  function easeOut(t) { return t * (2 - t); }
+
+  function applyEasing(t) {
+    var mode = easingEl.value;
+    if (mode === "linear") return t;
+    if (mode === "ease-in") return easeIn(t);
+    if (mode === "ease-out") return easeOut(t);
+    return easeInOut(t);
+  }
+
+  var previewArea = document.getElementById("previewArea");
+  var previewSections = document.querySelectorAll(".preview-section");
+
+  function updatePreview() {
+    var cfg = getConfig();
+    var areaRect = previewArea.getBoundingClientRect();
+    var areaH = previewArea.clientHeight;
+
+    var enableBg = !cfg.skipGroups.includes("background");
+    var enableHeadings = !cfg.skipGroups.includes("headings");
+    var enableBody = !cfg.skipGroups.includes("body");
+    var enableButtons = !cfg.skipGroups.includes("buttons");
+
+    previewSections.forEach(function(sec, i) {
+      var rect = sec.getBoundingClientRect();
+      var relTop = rect.top - areaRect.top;
+      var sectionH = rect.height;
+      var viewCenter = areaH / 2;
+      var progress = (viewCenter - relTop) / sectionH;
+      progress = Math.max(0, Math.min(1, progress));
+
+      var bg = hexToHSL(sec.dataset.bg);
+      var heading = hexToHSL(sec.dataset.heading);
+      var para = hexToHSL(sec.dataset.para);
+      var btnbg = hexToHSL(sec.dataset.btnbg);
+      var btntxt = hexToHSL(sec.dataset.btntxt);
+
+      var prev = i > 0 ? previewSections[i - 1] : null;
+      var next = i < previewSections.length - 1 ? previewSections[i + 1] : null;
+
+      var blendBg = bg, blendH = heading, blendP = para, blendBB = btnbg, blendBT = btntxt;
+
+      if (progress <= cfg.start && prev) {
+        var t = applyEasing(1 - progress / cfg.start);
+        blendBg = lerpColor(bg, hexToHSL(prev.dataset.bg), t);
+        blendH = lerpColor(heading, hexToHSL(prev.dataset.heading), t);
+        blendP = lerpColor(para, hexToHSL(prev.dataset.para), t);
+        blendBB = lerpColor(btnbg, hexToHSL(prev.dataset.btnbg), t);
+        blendBT = lerpColor(btntxt, hexToHSL(prev.dataset.btntxt), t);
+      } else if (progress >= cfg.end && next) {
+        var t2 = applyEasing((progress - cfg.end) / (1 - cfg.end));
+        blendBg = lerpColor(bg, hexToHSL(next.dataset.bg), t2);
+        blendH = lerpColor(heading, hexToHSL(next.dataset.heading), t2);
+        blendP = lerpColor(para, hexToHSL(next.dataset.para), t2);
+        blendBB = lerpColor(btnbg, hexToHSL(next.dataset.btnbg), t2);
+        blendBT = lerpColor(btntxt, hexToHSL(next.dataset.btntxt), t2);
+      }
+
+      if (enableBg) sec.style.backgroundColor = hslStr(blendBg);
+      else sec.style.backgroundColor = hslStr(bg);
+
+      var h2 = sec.querySelector("h2");
+      if (h2) h2.style.color = enableHeadings ? hslStr(blendH) : hslStr(heading);
+
+      var p = sec.querySelector("p");
+      if (p) p.style.color = enableBody ? hslStr(blendP) : hslStr(para);
+
+      var badge = sec.querySelector(".theme-badge");
+      if (badge) badge.style.color = enableBody ? hslStr(blendP) : hslStr(para);
+
+      var btn = sec.querySelector(".btn");
+      if (btn) {
+        btn.style.backgroundColor = enableButtons ? hslStr(blendBB) : hslStr(btnbg);
+        btn.style.color = enableButtons ? hslStr(blendBT) : hslStr(btntxt);
+      }
+    });
+  }
+
+  // Set initial preview colors
+  previewSections.forEach(function(sec) {
+    sec.style.backgroundColor = sec.dataset.bg;
+    var h2 = sec.querySelector("h2");
+    if (h2) h2.style.color = sec.dataset.heading;
+    var p = sec.querySelector("p");
+    if (p) p.style.color = sec.dataset.para;
+    var badge = sec.querySelector(".theme-badge");
+    if (badge) badge.style.color = sec.dataset.para;
+    var btn = sec.querySelector(".btn");
+    if (btn) {
+      btn.style.backgroundColor = sec.dataset.btnbg;
+      btn.style.color = sec.dataset.btntxt;
+    }
+  });
+
+  previewArea.addEventListener("scroll", function() {
+    requestAnimationFrame(updatePreview);
+  });
+
+  // Bind all controls
+  startEl.addEventListener("input", function() {
+    startValEl.textContent = this.value + "%";
+    generateCode();
+    updatePreview();
+  });
+  endEl.addEventListener("input", function() {
+    endValEl.textContent = this.value + "%";
+    generateCode();
+    updatePreview();
+  });
+  easingEl.addEventListener("change", function() { generateCode(); updatePreview(); });
+  excludeEl.addEventListener("input", function() { generateCode(); });
+  document.querySelectorAll("[data-group]").forEach(function(cb) {
+    cb.addEventListener("change", function() { generateCode(); updatePreview(); });
+  });
+
+  // Code tabs
+  document.querySelectorAll(".code-tab").forEach(function(tab) {
+    tab.addEventListener("click", function() {
+      document.querySelectorAll(".code-tab").forEach(function(t) { t.classList.remove("active"); });
+      tab.classList.add("active");
+      currentTab = tab.dataset.tab;
+      generateCode();
+    });
+  });
+
+  window.copyCode = function() {
+    var text = codeOutput.textContent;
+    navigator.clipboard.writeText(text).then(function() {
+      var btn = document.getElementById("copyBtn");
+      btn.classList.add("copied");
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> Copied!';
+      setTimeout(function() {
+        btn.classList.remove("copied");
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy';
+      }, 2000);
+    });
+  };
+
+  generateCode();
+  setTimeout(updatePreview, 100);
+})();
+</script>
+</body>
+</html>
