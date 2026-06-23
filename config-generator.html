@@ -294,21 +294,11 @@
     <div class="section-label">Transition Zone</div>
     <div class="control">
       <label>
-        Start Point
-        <span class="hint">How far into the section before blending begins</span>
+        Transition Point
+        <span class="hint">How far into the section before it fully shows its own colors (0% = instant, 100% = full section height)</span>
       </label>
       <div class="range-row">
-        <input type="range" id="transitionStart" min="5" max="45" value="35" />
-        <span class="val" id="transitionStartVal">35%</span>
-      </div>
-    </div>
-    <div class="control">
-      <label>
-        End Point
-        <span class="hint">How far into the section before blending completes</span>
-      </label>
-      <div class="range-row">
-        <input type="range" id="transitionEnd" min="55" max="95" value="65" />
+        <input type="range" id="transitionEnd" min="20" max="90" value="65" />
         <span class="val" id="transitionEndVal">65%</span>
       </div>
     </div>
@@ -428,9 +418,7 @@
 (function() {
   var CDN_BASE = "https://cdn.jsdelivr.net/gh/square-design-lab/Background-Color-Change-on-Scroll@latest";
 
-  var startEl = document.getElementById("transitionStart");
   var endEl = document.getElementById("transitionEnd");
-  var startValEl = document.getElementById("transitionStartVal");
   var endValEl = document.getElementById("transitionEndVal");
   var easingEl = document.getElementById("easing");
   var excludeEl = document.getElementById("excludeSections");
@@ -438,7 +426,6 @@
   var currentTab = "header";
 
   function getConfig() {
-    var start = +startEl.value / 100;
     var end = +endEl.value / 100;
     var easing = easingEl.value;
     var excludeRaw = excludeEl.value.trim();
@@ -453,12 +440,12 @@
     var navCb = document.querySelector('[data-group="nav"]');
     if (navCb && !navCb.checked) transitionNav = false;
 
-    return { start: start, end: end, easing: easing, exclude: exclude, skipGroups: skipGroups, transitionNav: transitionNav };
+    return { end: end, easing: easing, exclude: exclude, skipGroups: skipGroups, transitionNav: transitionNav };
   }
 
   function generateCode() {
     var cfg = getConfig();
-    var isDefault = cfg.start === 0.35 && cfg.end === 0.65 && cfg.easing === "ease" &&
+    var isDefault = cfg.end === 0.65 && cfg.easing === "ease" &&
       cfg.exclude.length === 0 && cfg.skipGroups.length === 0 && cfg.transitionNav;
 
     if (currentTab === "header") {
@@ -471,7 +458,6 @@
         lines.push("<script>");
         lines.push("window.SDL_BG_SCROLL_CONFIG = {");
         var props = [];
-        if (cfg.start !== 0.35) props.push("  transitionStart: " + cfg.start);
         if (cfg.end !== 0.65) props.push("  transitionEnd: " + cfg.end);
         if (cfg.easing !== "ease") props.push('  easing: "' + cfg.easing + '"');
         if (!cfg.transitionNav) props.push("  transitionNav: false");
@@ -575,20 +561,13 @@
 
       var blendBg = bg, blendH = heading, blendP = para, blendBB = btnbg, blendBT = btntxt;
 
-      if (progress <= cfg.start && prev) {
-        var t = applyEasing(1 - progress / cfg.start);
+      if (progress <= cfg.end && prev) {
+        var t = applyEasing(1 - progress / cfg.end);
         blendBg = lerpColor(bg, hexToHSL(prev.dataset.bg), t);
         blendH = lerpColor(heading, hexToHSL(prev.dataset.heading), t);
         blendP = lerpColor(para, hexToHSL(prev.dataset.para), t);
         blendBB = lerpColor(btnbg, hexToHSL(prev.dataset.btnbg), t);
         blendBT = lerpColor(btntxt, hexToHSL(prev.dataset.btntxt), t);
-      } else if (progress >= cfg.end && next) {
-        var t2 = applyEasing((progress - cfg.end) / (1 - cfg.end));
-        blendBg = lerpColor(bg, hexToHSL(next.dataset.bg), t2);
-        blendH = lerpColor(heading, hexToHSL(next.dataset.heading), t2);
-        blendP = lerpColor(para, hexToHSL(next.dataset.para), t2);
-        blendBB = lerpColor(btnbg, hexToHSL(next.dataset.btnbg), t2);
-        blendBT = lerpColor(btntxt, hexToHSL(next.dataset.btntxt), t2);
       }
 
       if (enableBg) sec.style.backgroundColor = hslStr(blendBg);
@@ -632,11 +611,6 @@
   });
 
   // Bind all controls
-  startEl.addEventListener("input", function() {
-    startValEl.textContent = this.value + "%";
-    generateCode();
-    updatePreview();
-  });
   endEl.addEventListener("input", function() {
     endValEl.textContent = this.value + "%";
     generateCode();

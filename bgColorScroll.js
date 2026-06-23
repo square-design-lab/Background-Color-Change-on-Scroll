@@ -2,7 +2,6 @@
   "use strict";
 
   var CFG = window.SDL_BG_SCROLL_CONFIG || {};
-  var transitionStart = CFG.transitionStart != null ? CFG.transitionStart : 0.35;
   var transitionEnd = CFG.transitionEnd != null ? CFG.transitionEnd : 0.65;
   var easingMode = CFG.easing || "ease";
   var excludeIds = CFG.excludeSections || [];
@@ -236,14 +235,10 @@
 
         var blendVars = null;
 
-        if (progress <= transitionStart && prevVars) {
-          var t = 1 - progress / transitionStart;
+        if (progress <= transitionEnd && prevVars) {
+          var t = 1 - progress / transitionEnd;
           t = applyEasing(Math.max(0, Math.min(1, t)));
           blendVars = blendThemeVars(vars, prevVars, t);
-        } else if (progress >= transitionEnd && nextVars) {
-          var t2 = (progress - transitionEnd) / (1 - transitionEnd);
-          t2 = applyEasing(Math.max(0, Math.min(1, t2)));
-          blendVars = blendThemeVars(vars, nextVars, t2);
         } else {
           blendVars = vars;
         }
