@@ -316,10 +316,6 @@
 
     <div class="section-label">Property Groups</div>
     <div class="toggle-row">
-      <span class="label">Background</span>
-      <label class="toggle"><input type="checkbox" checked data-group="background" /><span class="slider"></span></label>
-    </div>
-    <div class="toggle-row">
       <span class="label">Headings</span>
       <label class="toggle"><input type="checkbox" checked data-group="headings" /><span class="slider"></span></label>
     </div>
@@ -537,7 +533,6 @@
     var areaRect = previewArea.getBoundingClientRect();
     var areaH = previewArea.clientHeight;
 
-    var enableBg = !cfg.skipGroups.includes("background");
     var enableHeadings = !cfg.skipGroups.includes("headings");
     var enableBody = !cfg.skipGroups.includes("body");
     var enableButtons = !cfg.skipGroups.includes("buttons");
@@ -559,19 +554,17 @@
       var prev = i > 0 ? previewSections[i - 1] : null;
       var next = i < previewSections.length - 1 ? previewSections[i + 1] : null;
 
-      var blendBg = bg, blendH = heading, blendP = para, blendBB = btnbg, blendBT = btntxt;
+      var blendH = heading, blendP = para, blendBB = btnbg, blendBT = btntxt;
 
       if (progress <= cfg.end && prev) {
         var t = applyEasing(1 - progress / cfg.end);
-        blendBg = lerpColor(bg, hexToHSL(prev.dataset.bg), t);
         blendH = lerpColor(heading, hexToHSL(prev.dataset.heading), t);
         blendP = lerpColor(para, hexToHSL(prev.dataset.para), t);
         blendBB = lerpColor(btnbg, hexToHSL(prev.dataset.btnbg), t);
         blendBT = lerpColor(btntxt, hexToHSL(prev.dataset.btntxt), t);
       }
 
-      if (enableBg) sec.style.backgroundColor = hslStr(blendBg);
-      else sec.style.backgroundColor = hslStr(bg);
+      sec.style.backgroundColor = hslStr(bg);
 
       var h2 = sec.querySelector("h2");
       if (h2) h2.style.color = enableHeadings ? hslStr(blendH) : hslStr(heading);
