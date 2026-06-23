@@ -9,6 +9,8 @@
   var transitionNav = CFG.transitionNav !== false;
   var skipGroups = CFG.skipProperties || [];
 
+  var BG_VAR = "--siteBackgroundColor";
+
   var THEME_VARS = [
     "--siteBackgroundColor",
     "--headingExtraLargeColor",
@@ -64,8 +66,11 @@
     activeVars = activeVars.filter(function (v) { return !skippedVars[v]; });
   }
 
-  // Parse any CSS color string to {r,g,b,a} for RGB-space interpolation.
-  // RGB lerp never produces out-of-theme hues the way HSL lerp does.
+  var blendBg = activeVars.indexOf(BG_VAR) !== -1;
+  // Content vars are all active vars except the background — those are handled
+  // via an opacity overlay (not color mixing) to avoid wild intermediate hues.
+  var contentVars = activeVars.filter(function (v) { return v !== BG_VAR; });
+
   function parseColor(str) {
     if (!str) return null;
 
@@ -194,6 +199,25 @@
       if (probe) cacheTheme(probe, theme);
     });
 
+    // Inject an opacity overlay inside each section's .section-background.
+    // The overlay is painted the PREVIOUS section's background color and fades
+    // out as the section scrolls in — zero color mixing, no wild hues.
+    if (blendBg) {
+      sections.forEach(function (sec, i) {
+        if (i === 0) return;
+        var overlay = document.createElement("div");
+        overlay.className = "sdl-bg-overlay";
+        // Insert inside .section-background so it sits below all content
+        var bgEl = sec.querySelector(".section-background");
+        if (bgEl) {
+          bgEl.appendChild(overlay);
+        } else {
+          sec.insertBefore(overlay, sec.firstChild);
+        }
+        sec.__sdlBgOverlay = overlay;
+      });
+    }
+
     var header = document.querySelector("#header");
     var ticking = false;
 
@@ -225,15 +249,33 @@
         var progress = (viewportCenter - sectionTop) / sectionH;
         progress = Math.max(0, Math.min(1, progress));
 
+        // Background: fade the previous section's colour out via overlay opacity.
+        // This avoids any colour mixing — no purple/green artifacts between themes.
+        var overlay = sec.__sdlBgOverlay;
+        if (overlay && prevVars) {
+          var prevBg = prevVars[BG_VAR];
+          if (prevBg) overlay.style.backgroundColor = rgbToString(prevBg);
+          if (progress <= transitionEnd) {
+            var tBg = applyEasing(Math.max(0, Math.min(1, 1 - progress / transitionEnd)));
+            overlay.style.opacity = tBg;
+            overlay.style.display = "";
+          } else {
+            overlay.style.opacity = "0";
+          }
+        }
+
+        // Content vars (text, buttons, etc.): RGB interpolation via CSS custom props.
+        // These colours are typically close in value across themes (often white/near-white)
+        // so blending produces no visible artefact.
         var blendVars;
         if (progress <= transitionEnd && prevVars) {
           var t = applyEasing(Math.max(0, Math.min(1, 1 - progress / transitionEnd)));
-          blendVars = blendThemeVars(vars, prevVars, t);
+          blendVars = blendContentVars(vars, prevVars, t);
         } else {
           blendVars = vars;
         }
 
-        applyVarsToSection(sec, blendVars);
+        applyContentVarsToSection(sec, blendVars);
 
         if (transitionNav && header && isTopSection(rect, vh)) {
           applyVarsToNav(header, blendVars);
@@ -245,9 +287,9 @@
       return rect.top <= vh * 0.15 && rect.bottom > vh * 0.15;
     }
 
-    function blendThemeVars(base, target, t) {
+    function blendContentVars(base, target, t) {
       var result = {};
-      activeVars.forEach(function (v) {
+      contentVars.forEach(function (v) {
         var a = base[v];
         var b = target[v];
         result[v] = (a && b) ? lerpRGB(a, b, t) : (a || b || null);
@@ -255,8 +297,8 @@
       return result;
     }
 
-    function applyVarsToSection(sec, vars) {
-      activeVars.forEach(function (v) {
+    function applyContentVarsToSection(sec, vars) {
+      contentVars.forEach(function (v) {
         if (NAV_VARS.indexOf(v) !== -1) return;
         var val = vars[v];
         if (val && typeof val === "object") {
