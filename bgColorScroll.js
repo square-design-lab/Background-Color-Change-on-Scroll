@@ -8,12 +8,11 @@
   var includeOnly = CFG.includeSections || [];
   var transitionNav = CFG.transitionNav !== false;
   var skipGroups = CFG.skipProperties || [];
+  var skipBg = CFG.skipBackground === true;
 
-  // --siteBackgroundColor is excluded by default: blending red→blue always
-  // produces an off-theme purple midpoint. Background snaps at section
-  // boundaries (natural scroll behaviour). Content colours — text, buttons,
-  // nav — blend smoothly and stay within the palette of the two adjacent themes.
-  var THEME_VARS = [
+  var BG_VAR = "--siteBackgroundColor";
+
+  var CONTENT_VARS = [
     "--headingExtraLargeColor",
     "--headingLargeColor",
     "--headingMediumColor",
@@ -34,6 +33,7 @@
   ];
 
   var GROUP_MAP = {
+    background: [BG_VAR],
     headings: [
       "--headingExtraLargeColor",
       "--headingLargeColor",
@@ -55,26 +55,24 @@
     nav: ["--siteTitleColor", "--navigationLinkColor"]
   };
 
-  var activeVars = THEME_VARS.slice();
-  if (transitionNav) activeVars = activeVars.concat(NAV_VARS);
+  var activeContentVars = CONTENT_VARS.slice();
+  if (transitionNav) activeContentVars = activeContentVars.concat(NAV_VARS);
 
   if (skipGroups.length) {
     var skippedVars = {};
     skipGroups.forEach(function (g) {
       if (GROUP_MAP[g]) GROUP_MAP[g].forEach(function (v) { skippedVars[v] = true; });
     });
-    activeVars = activeVars.filter(function (v) { return !skippedVars[v]; });
+    activeContentVars = activeContentVars.filter(function (v) { return !skippedVars[v]; });
+    if (skippedVars[BG_VAR]) skipBg = true;
   }
 
   function parseColor(str) {
     if (!str) return null;
-
     var m = str.match(
       /hsla?\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%\s*(?:,\s*([\d.]+))?\s*\)/
     );
-    if (m) {
-      return hslToRgb(+m[1] / 360, +m[2] / 100, +m[3] / 100, m[4] != null ? +m[4] : 1);
-    }
+    if (m) return hslToRgb(+m[1] / 360, +m[2] / 100, +m[3] / 100, m[4] != null ? +m[4] : 1);
 
     var r = str.match(
       /rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+))?\s*\)/
@@ -130,14 +128,7 @@
   }
 
   function rgbToString(c) {
-    return (
-      "rgba(" +
-      Math.round(c.r) + "," +
-      Math.round(c.g) + "," +
-      Math.round(c.b) + "," +
-      c.a.toFixed(3) +
-      ")"
-    );
+    return "rgba(" + Math.round(c.r) + "," + Math.round(c.g) + "," + Math.round(c.b) + "," + c.a.toFixed(3) + ")";
   }
 
   function easeInOut(t) { return t * t * (3 - 2 * t); }
@@ -165,7 +156,8 @@
 
     if (sections.length < 2) return;
 
-    var themeCache = {};
+    var bgCache = {};
+    var contentCache = {};
     var allThemes = [
       "white", "white-bold", "light", "light-bold",
       "bright", "bright-inverse", "dark", "dark-bold",
@@ -173,14 +165,18 @@
     ];
 
     function cacheTheme(el, theme) {
-      if (themeCache[theme]) return;
+      if (contentCache[theme]) return;
       var cs = getComputedStyle(el);
-      var vars = {};
-      activeVars.forEach(function (v) {
+
+      var cvars = {};
+      activeContentVars.forEach(function (v) {
         var val = cs.getPropertyValue(v).trim();
-        if (val) vars[v] = parseColor(val);
+        if (val) cvars[v] = parseColor(val);
       });
-      themeCache[theme] = vars;
+      contentCache[theme] = cvars;
+
+      var bgVal = cs.getPropertyValue(BG_VAR).trim();
+      if (bgVal) bgCache[theme] = parseColor(bgVal);
     }
 
     sections.forEach(function (sec) {
@@ -189,10 +185,34 @@
     });
 
     allThemes.forEach(function (theme) {
-      if (themeCache[theme]) return;
+      if (contentCache[theme]) return;
       var probe = document.querySelector('[data-section-theme="' + theme + '"]');
       if (probe) cacheTheme(probe, theme);
     });
+
+    // Background wipe: inject overlay inside each section's .section-background.
+    // The overlay is painted the PREVIOUS section's bg colour and clips away
+    // from bottom-to-top as the user scrolls in — no colour mixing, no artifacts.
+    if (!skipBg) {
+      sections.forEach(function (sec, i) {
+        if (i === 0) return;
+        var prevTheme = sections[i - 1].getAttribute("data-section-theme");
+        var prevBg = bgCache[prevTheme];
+        if (!prevBg) return;
+
+        var overlay = document.createElement("div");
+        overlay.className = "sdl-bg-overlay";
+        overlay.style.backgroundColor = rgbToString(prevBg);
+
+        var bgEl = sec.querySelector(".section-background");
+        if (bgEl) {
+          bgEl.appendChild(overlay);
+        } else {
+          sec.insertBefore(overlay, sec.firstChild);
+        }
+        sec._sdlOverlay = overlay;
+      });
+    }
 
     var header = document.querySelector("#header");
     var ticking = false;
@@ -212,12 +232,12 @@
         var sec = sections[i];
         var rect = sec.getBoundingClientRect();
         var theme = sec.getAttribute("data-section-theme");
-        var vars = themeCache[theme];
+        var vars = contentCache[theme];
         if (!vars) continue;
 
         var prevSec = i > 0 ? sections[i - 1] : null;
         var prevTheme = prevSec ? prevSec.getAttribute("data-section-theme") : null;
-        var prevVars = prevTheme ? themeCache[prevTheme] : null;
+        var prevVars = prevTheme ? contentCache[prevTheme] : null;
 
         var sectionTop = rect.top + scrollTop;
         var sectionH = rect.height;
@@ -225,10 +245,25 @@
         var progress = (viewportCenter - sectionTop) / sectionH;
         progress = Math.max(0, Math.min(1, progress));
 
+        // Background wipe: clip the overlay from bottom-to-top
+        var overlay = sec._sdlOverlay;
+        if (overlay) {
+          if (progress <= transitionEnd) {
+            var rawT = Math.max(0, Math.min(1, progress / transitionEnd));
+            var clipPct = applyEasing(rawT) * 100;
+            overlay.style.clipPath = "inset(0 0 " + clipPct.toFixed(1) + "% 0)";
+            overlay.style.display = "";
+          } else {
+            overlay.style.clipPath = "inset(0 0 100% 0)";
+          }
+        }
+
+        // Content vars: RGB lerp (text colours are typically near-white/near-black
+        // across themes so blending stays within palette)
         var blendVars;
         if (progress <= transitionEnd && prevVars) {
           var t = applyEasing(Math.max(0, Math.min(1, 1 - progress / transitionEnd)));
-          blendVars = blendThemeVars(vars, prevVars, t);
+          blendVars = blendContentVars(vars, prevVars, t);
         } else {
           blendVars = vars;
         }
@@ -245,9 +280,10 @@
       return rect.top <= vh * 0.15 && rect.bottom > vh * 0.15;
     }
 
-    function blendThemeVars(base, target, t) {
+    function blendContentVars(base, target, t) {
       var result = {};
-      activeVars.forEach(function (v) {
+      activeContentVars.forEach(function (v) {
+        if (NAV_VARS.indexOf(v) !== -1) return;
         var a = base[v];
         var b = target[v];
         result[v] = (a && b) ? lerpRGB(a, b, t) : (a || b || null);
@@ -256,7 +292,7 @@
     }
 
     function applyVarsToSection(sec, vars) {
-      activeVars.forEach(function (v) {
+      activeContentVars.forEach(function (v) {
         if (NAV_VARS.indexOf(v) !== -1) return;
         var val = vars[v];
         if (val && typeof val === "object") {
