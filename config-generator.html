@@ -316,6 +316,10 @@
 
     <div class="section-label">Property Groups</div>
     <div class="toggle-row">
+      <span class="label">Background</span>
+      <label class="toggle"><input type="checkbox" checked data-group="background" /><span class="slider"></span></label>
+    </div>
+    <div class="toggle-row">
       <span class="label">Headings</span>
       <label class="toggle"><input type="checkbox" checked data-group="headings" /><span class="slider"></span></label>
     </div>
@@ -461,9 +465,12 @@
           props.push('  excludeSections: ["' + cfg.exclude.join('", "') + '"]');
         }
         if (cfg.skipGroups.length) {
-          var filtered = cfg.skipGroups.filter(function(g) { return g !== "nav"; });
+          var filtered = cfg.skipGroups.filter(function(g) { return g !== "nav" && g !== "background"; });
           if (filtered.length) {
             props.push('  skipProperties: ["' + filtered.join('", "') + '"]');
+          }
+          if (cfg.skipGroups.includes("background")) {
+            props.push("  skipBackground: true");
           }
         }
         lines.push(props.join(",\n"));
@@ -528,11 +535,24 @@
   var previewArea = document.getElementById("previewArea");
   var previewSections = document.querySelectorAll(".preview-section");
 
+  // Create wipe overlays for preview sections
+  previewSections.forEach(function(sec, i) {
+    if (i === 0) return;
+    var prev = previewSections[i - 1];
+    var overlay = document.createElement("div");
+    overlay.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;will-change:clip-path;";
+    overlay.style.backgroundColor = prev.dataset.bg;
+    overlay.className = "preview-overlay";
+    sec.appendChild(overlay);
+    sec._overlay = overlay;
+  });
+
   function updatePreview() {
     var cfg = getConfig();
     var areaRect = previewArea.getBoundingClientRect();
     var areaH = previewArea.clientHeight;
 
+    var enableBg = !cfg.skipGroups.includes("background");
     var enableHeadings = !cfg.skipGroups.includes("headings");
     var enableBody = !cfg.skipGroups.includes("body");
     var enableButtons = !cfg.skipGroups.includes("buttons");
@@ -552,10 +572,24 @@
       var btntxt = hexToHSL(sec.dataset.btntxt);
 
       var prev = i > 0 ? previewSections[i - 1] : null;
-      var next = i < previewSections.length - 1 ? previewSections[i + 1] : null;
 
+      // Background: wipe overlay (clip-path), no colour mixing
+      var overlay = sec._overlay;
+      if (overlay) {
+        if (enableBg && progress <= cfg.end && prev) {
+          var rawT = Math.max(0, Math.min(1, progress / cfg.end));
+          var clipPct = applyEasing(rawT) * 100;
+          overlay.style.clipPath = "inset(0 0 " + clipPct.toFixed(1) + "% 0)";
+          overlay.style.display = "";
+        } else {
+          overlay.style.clipPath = "inset(0 0 100% 0)";
+        }
+      }
+
+      sec.style.backgroundColor = hslStr(bg);
+
+      // Content vars: lerp
       var blendH = heading, blendP = para, blendBB = btnbg, blendBT = btntxt;
-
       if (progress <= cfg.end && prev) {
         var t = applyEasing(1 - progress / cfg.end);
         blendH = lerpColor(heading, hexToHSL(prev.dataset.heading), t);
@@ -563,8 +597,6 @@
         blendBB = lerpColor(btnbg, hexToHSL(prev.dataset.btnbg), t);
         blendBT = lerpColor(btntxt, hexToHSL(prev.dataset.btntxt), t);
       }
-
-      sec.style.backgroundColor = hslStr(bg);
 
       var h2 = sec.querySelector("h2");
       if (h2) h2.style.color = enableHeadings ? hslStr(blendH) : hslStr(heading);
